@@ -361,6 +361,32 @@ HTML_TEMPLATE = """
       </div>
       {% endif %}
 
+      <!-- Alternative: Show all formats in a simple list -->
+      {% if total_displayed < 3 %}
+      <div class="format-section">
+        <h3 class="format-section-title">
+          <span class="material-icons mr-2">list</span>
+          All Available Formats
+        </h3>
+        <div class="format-grid">
+          {% for f in formats %}
+          <label class="format-option" onclick="selectFormat(this)">
+            <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+            <div class="format-info">
+              <div class="flex items-center justify-between">
+                <span class="format-quality">{{ f.get('height', 'N/A') }}p - {{ f.get('format_note', '') }}</span>
+                <span class="quality-badge {% if f.get('vcodec', 'none') != 'none' %}quality-{{ f.get('height', 0) }}p{% else %}audio-quality{% endif %}">
+                  {% if f.get('vcodec', 'none') != 'none' %}{{ f.get('height', 'N/A') }}p{% else %}Audio{% endif %}
+                </span>
+              </div>
+              <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       <button type="submit" class="custom-button custom-button-green mt-6">
         <span class="material-icons mr-2">file_download</span> Download Selected Format
       </button>
@@ -412,12 +438,11 @@ def index():
             
             with yt_dlp.YoutubeDL() as ydl:
                 try:
-                    # Configure yt-dlp to get more formats
+                    # Configure yt-dlp to get all available formats
                     ydl.params.update({
-                        'format': 'bestvideo+bestaudio/best',
-                        'listformats': True,
                         'quiet': False,
-                        'no_warnings': False
+                        'no_warnings': False,
+                        'extract_flat': False
                     })
                     
                     info_dict = ydl.extract_info(video_url, download=False)
@@ -428,8 +453,8 @@ def index():
                     if not formats:
                         return render_template_string(HTML_TEMPLATE, error="No formats available for this video.")
                     
-                    # Filter out formats without format_id
-                    formats = [f for f in formats if f.get('format_id')]
+                    # Filter out formats without format_id and ensure we have valid formats
+                    formats = [f for f in formats if f.get('format_id') and (f.get('vcodec', 'none') != 'none' or f.get('acodec', 'none') != 'none')]
                     
                     # Sort formats by quality (height first, then filesize)
                     formats.sort(key=lambda x: (
@@ -437,10 +462,11 @@ def index():
                         x.get('filesize_approx', 0) or 0
                     ), reverse=True)
                     
-                    # Debug: Print format count
+                    # Debug: Print format count and details
                     print(f"Total formats found: {len(formats)}")
-                    for f in formats[:5]:  # Print first 5 formats for debugging
-                        print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')}")
+                    print("Sample formats:")
+                    for f in formats[:10]:  # Print first 10 formats for debugging
+                        print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
                     
                     return render_template_string(HTML_TEMPLATE, 
                                                 formats=formats, 
@@ -540,20 +566,39 @@ def video_formats_with_height(formats, min_height=None, max_height=None):
     for f in formats:
         # Check if it's a video format (has video codec)
         if f.get('vcodec', 'none') != 'none':
-            # For lower qualities, include formats with any height
+            height = f.get('height')
+            
+            # For lower qualities (min_height is None), include formats with any height below max_height
             if min_height is None and max_height is not None:
-                height = f.get('height')
                 if height is not None and height < max_height:
                     filtered_formats.append(f)
             # For specific height ranges
-            elif has_height(f, min_height, max_height):
-                filtered_formats.append(f)
+            elif min_height is not None and max_height is not None:
+                if height is not None and min_height <= height < max_height:
+                    filtered_formats.append(f)
+            # For 4K and above (only min_height specified)
+            elif min_height is not None and max_height is None:
+                if height is not None and height >= min_height:
+                    filtered_formats.append(f)
+            # If no height filter, include all video formats with height
+            else:
+                if height is not None:
+                    filtered_formats.append(f)
+    
     return filtered_formats
 
 # Add a custom filter to get audio formats
 @app.template_filter('audio_formats')
 def audio_formats(formats):
-    return [f for f in formats if f.get('vcodec', 'none') == 'none' and f.get('acodec', 'none') != 'none']
+    audio_formats_list = []
+    for f in formats:
+        # Audio-only formats (no video codec, but has audio codec)
+        if f.get('vcodec', 'none') == 'none' and f.get('acodec', 'none') != 'none':
+            audio_formats_list.append(f)
+        # Also include formats with both video and audio but marked as audio
+        elif f.get('format_note', '').lower().find('audio') != -1:
+            audio_formats_list.append(f)
+    return audio_formats_list
 
 # Add a debug filter to show all formats
 @app.template_filter('all_formats')
