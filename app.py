@@ -446,6 +446,44 @@ HTML_TEMPLATE = """
       </div>
       {% endif %}
 
+      <!-- Comprehensive Format Display -->
+      <div class="format-section">
+        <h3 class="format-section-title">
+          <span class="material-icons mr-2">grid_view</span>
+          All Formats ({{ formats|length }} available)
+        </h3>
+        <div class="format-grid">
+          {% for f in formats %}
+          <label class="format-option" onclick="selectFormat(this)">
+            <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+            <div class="format-info">
+              <div class="flex items-center justify-between">
+                <span class="format-quality">
+                  {% if f.get('height') %}{{ f.get('height') }}p{% else %}N/A{% endif %} 
+                  {% if f.get('format_note') %}- {{ f.get('format_note') }}{% endif %}
+                </span>
+                <span class="quality-badge {% if f.get('vcodec', 'none') != 'none' %}quality-{{ f.get('height', 0) }}p{% else %}audio-quality{% endif %}">
+                  {% if f.get('vcodec', 'none') != 'none' %}
+                    {% if f.get('height', 0) >= 2160 %}4K
+                    {% elif f.get('height', 0) >= 1080 %}1080p
+                    {% elif f.get('height', 0) >= 720 %}720p
+                    {% elif f.get('height', 0) >= 480 %}480p
+                    {% elif f.get('height', 0) >= 360 %}360p
+                    {% elif f.get('height', 0) >= 240 %}240p
+                    {% else %}{{ f.get('height', 'N/A') }}p{% endif %}
+                  {% else %}Audio{% endif %}
+                </span>
+              </div>
+              <span class="format-type">
+                {{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}
+                {% if f.get('vcodec', 'none') != 'none' and f.get('acodec', 'none') != 'none' %} (Video+Audio){% endif %}
+              </span>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
       <button type="submit" class="custom-button custom-button-green mt-6">
         <span class="material-icons mr-2">file_download</span> Download Selected Format
       </button>
@@ -497,12 +535,21 @@ def index():
             
             with yt_dlp.YoutubeDL() as ydl:
                 try:
-                    # Configure yt-dlp to get all available formats
+                    # Configure yt-dlp to get all available formats with proper headers
                     ydl.params.update({
                         'quiet': False,
                         'no_warnings': False,
                         'extract_flat': False,
-                        'format': 'best'  # This ensures we get all formats
+                        'format': 'best',
+                        'http_headers': {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                            'Accept-Language': 'en-us,en;q=0.5',
+                            'Accept-Encoding': 'gzip,deflate',
+                            'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
+                            'Keep-Alive': '115',
+                            'Connection': 'keep-alive',
+                        }
                     })
                     
                     info_dict = ydl.extract_info(video_url, download=False)
@@ -514,7 +561,25 @@ def index():
                         return render_template_string(HTML_TEMPLATE, error="No formats available for this video.")
                     
                     # Filter out formats without format_id and ensure we have valid formats
-                    formats = [f for f in formats if f.get('format_id') and (f.get('vcodec', 'none') != 'none' or f.get('acodec', 'none') != 'none')]
+                    formats = [f for f in formats if f.get('format_id')]
+                    
+                    # Include all formats that have either video or audio codec
+                    valid_formats = []
+                    for f in formats:
+                        vcodec = f.get('vcodec', 'none')
+                        acodec = f.get('acodec', 'none')
+                        
+                        # Include if it has video codec (not 'none')
+                        if vcodec != 'none':
+                            valid_formats.append(f)
+                        # Include if it has audio codec (not 'none') and no video
+                        elif acodec != 'none':
+                            valid_formats.append(f)
+                        # Include if it has format_note indicating it's a valid format
+                        elif f.get('format_note'):
+                            valid_formats.append(f)
+                    
+                    formats = valid_formats
                     
                     # Sort formats by quality (height first, then filesize)
                     formats.sort(key=lambda x: (
@@ -525,7 +590,7 @@ def index():
                     # Debug: Print format count and details
                     print(f"Total formats found: {len(formats)}")
                     print("Sample formats:")
-                    for f in formats[:15]:  # Print first 15 formats for debugging
+                    for f in formats[:20]:  # Print first 20 formats for debugging
                         print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
                     
                     return render_template_string(HTML_TEMPLATE, 
@@ -559,7 +624,16 @@ def download():
             "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
             "format": format_id,
             "quiet": False,
-            "no_warnings": False
+            "no_warnings": False,
+            "http_headers": {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Accept-Encoding': 'gzip,deflate',
+                'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
+                'Keep-Alive': '115',
+                'Connection': 'keep-alive',
+            }
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
