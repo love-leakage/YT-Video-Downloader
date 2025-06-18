@@ -210,21 +210,30 @@ HTML_TEMPLATE = """
     /* Mobile-specific improvements */
     @media (max-width: 640px) {
       .container {
-        margin: 0.5rem;
-        padding: 1rem;
+        margin: 0.25rem;
+        padding: 0.5rem;
       }
-      
+      .custom-button, .custom-input {
+        font-size: 18px;
+        padding: 1rem 0.5rem;
+      }
       .format-option {
-        padding: 0.75rem;
-        min-height: 50px;
+        padding: 1rem;
+        min-height: 60px;
+        font-size: 1rem;
       }
-      
-      .format-quality {
-        font-size: 0.875rem;
+      .format-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem;
       }
-      
-      .format-type {
-        font-size: 0.75rem;
+      .title-text {
+        font-size: 1.5rem;
+      }
+      .title-icon {
+        font-size: 2.5rem;
+      }
+      .video-title {
+        font-size: 1.1rem;
       }
     }
   </style>
@@ -696,35 +705,36 @@ def index():
             # Filter out formats without format_id and ensure we have valid formats
             formats = [f for f in formats if f.get('format_id')]
             
-            # Include all formats that have either video or audio codec
-            valid_formats = []
-            for f in formats:
-                vcodec = f.get('vcodec', 'none')
-                acodec = f.get('acodec', 'none')
-                
-                # Include if it has video codec (not 'none')
-                if vcodec != 'none':
-                    valid_formats.append(f)
-                # Include if it has audio codec (not 'none') and no video
-                elif acodec != 'none':
-                    valid_formats.append(f)
-                # Include if it has format_note indicating it's a valid format
-                elif f.get('format_note'):
-                    valid_formats.append(f)
+            # --- Custom Filtering: Only 3 video+audio and 3 audio-only options ---
+            video_audio_formats = [f for f in formats if f.get('vcodec', 'none') != 'none' and f.get('acodec', 'none') != 'none']
+            audio_only_formats = [f for f in formats if f.get('vcodec', 'none') == 'none' and f.get('acodec', 'none') != 'none']
             
-            formats = valid_formats
+            # Sort video+audio by height (quality)
+            video_audio_formats.sort(key=lambda x: (x.get('height', 0) or 0, x.get('filesize_approx', 0) or 0), reverse=True)
+            # Sort audio-only by abr (audio bitrate)
+            audio_only_formats.sort(key=lambda x: (x.get('abr', 0) or 0, x.get('filesize_approx', 0) or 0), reverse=True)
             
-            # Sort formats by quality (height first, then filesize)
-            formats.sort(key=lambda x: (
-                x.get('height', 0) or 0,
-                x.get('filesize_approx', 0) or 0
-            ), reverse=True)
+            # Pick best, medium, and lowest for each
+            def pick_best_medium_low(lst):
+                if not lst:
+                    return []
+                if len(lst) <= 3:
+                    return lst
+                best = lst[0]
+                low = lst[-1]
+                medium = lst[len(lst)//2]
+                return [best, medium, low]
+            
+            filtered_video_audio = pick_best_medium_low(video_audio_formats)
+            filtered_audio_only = pick_best_medium_low(audio_only_formats)
+            
+            # Merge for display (video+audio first, then audio-only)
+            formats = filtered_video_audio + filtered_audio_only
             
             # Debug: Print format count and details
-            print(f"Total formats found: {len(formats)}")
-            print("Sample formats:")
-            for f in formats[:20]:  # Print first 20 formats for debugging
-                print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
+            print(f"Total formats found: {len(formats)} (filtered)")
+            for f in formats:
+                print(f"Format: {f.get('format_id')} - {f.get('height', 'N/A')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
             
             return render_template_string(HTML_TEMPLATE, 
                                         formats=formats, 
