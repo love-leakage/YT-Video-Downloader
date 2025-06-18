@@ -519,13 +519,25 @@ def index():
                         'format': 'best',
                         'http_headers': {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                            'Accept-Language': 'en-us,en;q=0.5',
-                            'Accept-Encoding': 'gzip,deflate',
-                            'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
-                            'Keep-Alive': '115',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'Accept-Charset': 'utf-8',
+                            'DNT': '1',
                             'Connection': 'keep-alive',
-                        }
+                            'Upgrade-Insecure-Requests': '1',
+                            'Sec-Fetch-Dest': 'document',
+                            'Sec-Fetch-Mode': 'navigate',
+                            'Sec-Fetch-Site': 'none',
+                            'Sec-Fetch-User': '?1',
+                            'Cache-Control': 'max-age=0'
+                        },
+                        'cookiesfrombrowser': ("chrome",),
+                        'extractor_retries': 3,
+                        'retries': 3,
+                        'fragment_retries': 3,
+                        'skip_unavailable_fragments': True,
+                        'ignoreerrors': False
                     })
                     
                     info_dict = ydl.extract_info(video_url, download=False)
@@ -596,65 +608,135 @@ def download():
         # Use temporary directory for deployed platforms
         temp_dir = tempfile.mkdtemp()
         
-        ydl_opts = {
-            "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
-            "format": format_id,
-            "quiet": False,
-            "no_warnings": False,
-            "http_headers": {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Accept-Encoding': 'gzip,deflate',
-                'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
-                'Keep-Alive': '115',
-                'Connection': 'keep-alive',
+        # Define download strategies
+        download_strategies = [
+            # Strategy 1: Full headers with cookies
+            {
+                "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
+                "format": format_id,
+                "quiet": False,
+                "no_warnings": False,
+                "http_headers": {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Accept-Charset': 'utf-8',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Sec-Fetch-User': '?1',
+                    'Cache-Control': 'max-age=0'
+                },
+                "cookiesfrombrowser": ("chrome",),
+                "extractor_retries": 3,
+                "retries": 3,
+                "fragment_retries": 3,
+                "skip_unavailable_fragments": True,
+                "ignoreerrors": False
+            },
+            # Strategy 2: Simple headers without cookies
+            {
+                "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
+                "format": format_id,
+                "quiet": False,
+                "no_warnings": False,
+                "http_headers": {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                },
+                "retries": 3,
+                "fragment_retries": 3,
+                "skip_unavailable_fragments": True,
+            },
+            # Strategy 3: Best format with simple headers
+            {
+                "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
+                "format": "best",
+                "quiet": False,
+                "no_warnings": False,
+                "http_headers": {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                },
+                "retries": 3,
             }
-        }
+        ]
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        # Try multiple download strategies
+        download_success = False
+        last_error = None
+        
+        for i, strategy in enumerate(download_strategies):
             try:
-                # First extract info to get filename
-                info_dict = ydl.extract_info(video_url, download=False)
-                if not info_dict:
-                    return "Could not fetch video information", 400
-                
-                # Download the video
-                ydl.download([video_url])
-                
-                # Find the downloaded file
-                video_file = ydl.prepare_filename(info_dict)
-                if not os.path.exists(video_file):
-                    # Try to find the file in temp directory
-                    files = os.listdir(temp_dir)
-                    if files:
-                        video_file = os.path.join(temp_dir, files[0])
-                    else:
-                        return "Download failed - file not found", 500
-                
-                # Get filename for download
-                filename = os.path.basename(video_file)
-                
-                # Send file and clean up
-                try:
-                    return send_file(
-                        video_file, 
-                        as_attachment=True,
-                        download_name=filename,
-                        mimetype='application/octet-stream'
-                    )
-                finally:
-                    # Clean up temporary file
+                print(f"Trying download strategy {i+1}...")
+                with yt_dlp.YoutubeDL(strategy) as ydl:
+                    # First extract info to get filename
+                    info_dict = ydl.extract_info(video_url, download=False)
+                    if not info_dict:
+                        continue
+                    
+                    # Try to download the video
+                    ydl.download([video_url])
+                    
+                    # Find the downloaded file
+                    video_file = ydl.prepare_filename(info_dict)
+                    if not os.path.exists(video_file):
+                        # Try to find the file in temp directory
+                        files = os.listdir(temp_dir)
+                        if files:
+                            video_file = os.path.join(temp_dir, files[0])
+                        else:
+                            continue
+                    
+                    # Get filename for download
+                    filename = os.path.basename(video_file)
+                    
+                    # Send file and clean up
                     try:
-                        os.remove(video_file)
-                        os.rmdir(temp_dir)
-                    except:
-                        pass
-                        
+                        response = send_file(
+                            video_file, 
+                            as_attachment=True,
+                            download_name=filename,
+                            mimetype='application/octet-stream'
+                        )
+                        download_success = True
+                        return response
+                    finally:
+                        # Clean up temporary file
+                        try:
+                            os.remove(video_file)
+                            os.rmdir(temp_dir)
+                        except:
+                            pass
+                            
             except yt_dlp.utils.DownloadError as e:
-                return f"Download error: {str(e)}", 500
+                last_error = e
+                print(f"Strategy {i+1} failed: {e}")
+                continue
             except Exception as e:
-                return f"An error occurred: {str(e)}", 500
+                last_error = e
+                print(f"Strategy {i+1} failed with exception: {e}")
+                continue
+        
+        # If all strategies failed
+        if not download_success:
+            error_msg = str(last_error) if last_error else "Unknown error"
+            if "403" in error_msg:
+                return "Access denied (403). This video may be restricted or unavailable. Try a different video.", 403
+            elif "404" in error_msg:
+                return "Video not found (404). Please check the URL.", 404
+            else:
+                return f"All download strategies failed. Last error: {error_msg}", 500
     except Exception as e:
         return f"An error occurred: {str(e)}", 500
 
