@@ -1,6 +1,7 @@
 from flask import Flask, render_template_string, request, send_file
 import yt_dlp
 import os
+import tempfile
 
 app = Flask(__name__)
 
@@ -25,17 +26,20 @@ HTML_TEMPLATE = """
     body {
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      min-height: 100vh;
     }
     
     .container {
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255, 255, 255, 0.2);
+      margin: 1rem;
     }
     
     .custom-input {
       @apply w-full outline-none bg-transparent;
       transition: all 0.3s ease;
+      font-size: 16px; /* Prevent zoom on iOS */
     }
     
     .custom-input:focus {
@@ -44,6 +48,7 @@ HTML_TEMPLATE = """
     
     .custom-button {
       @apply w-full py-3 rounded-lg flex items-center justify-center transition-all duration-300 transform;
+      font-size: 16px; /* Prevent zoom on iOS */
     }
     
     .custom-button:hover {
@@ -77,12 +82,19 @@ HTML_TEMPLATE = """
     }
     
     .format-grid {
-      @apply grid grid-cols-1 md:grid-cols-2 gap-3;
+      @apply grid grid-cols-1 gap-3;
+    }
+    
+    @media (min-width: 768px) {
+      .format-grid {
+        @apply grid-cols-2;
+      }
     }
     
     .format-option {
-      @apply flex items-center bg-gray-50 rounded-lg p-4 shadow-sm transition-all duration-300 cursor-pointer;
+      @apply flex items-center bg-gray-50 rounded-lg p-3 shadow-sm transition-all duration-300 cursor-pointer;
       border: 2px solid transparent;
+      min-height: 60px;
     }
     
     .format-option:hover {
@@ -98,7 +110,7 @@ HTML_TEMPLATE = """
     }
     
     .format-info {
-      @apply flex flex-col;
+      @apply flex flex-col w-full;
     }
     
     .format-quality {
@@ -110,15 +122,35 @@ HTML_TEMPLATE = """
     }
     
     .title-container {
-      @apply flex justify-center items-center mb-8;
+      @apply flex justify-center items-center mb-6;
+      flex-direction: column;
+    }
+    
+    @media (min-width: 640px) {
+      .title-container {
+        flex-direction: row;
+        margin-bottom: 2rem;
+      }
     }
     
     .title-icon {
-      @apply text-6xl text-indigo-500;
+      @apply text-4xl text-indigo-500;
+    }
+    
+    @media (min-width: 640px) {
+      .title-icon {
+        @apply text-6xl;
+      }
     }
     
     .title-text {
-      @apply text-3xl font-bold text-gray-800 ml-3;
+      @apply text-2xl font-bold text-gray-800 mt-2;
+    }
+    
+    @media (min-width: 640px) {
+      .title-text {
+        @apply text-3xl ml-3 mt-0;
+      }
     }
 
     .folder-input-group {
@@ -166,7 +198,34 @@ HTML_TEMPLATE = """
     }
     
     .video-title {
-      @apply text-xl font-semibold text-gray-800 mb-4 text-center;
+      @apply text-lg font-semibold text-gray-800 mb-4 text-center;
+    }
+    
+    @media (min-width: 640px) {
+      .video-title {
+        @apply text-xl;
+      }
+    }
+    
+    /* Mobile-specific improvements */
+    @media (max-width: 640px) {
+      .container {
+        margin: 0.5rem;
+        padding: 1rem;
+      }
+      
+      .format-option {
+        padding: 0.75rem;
+        min-height: 50px;
+      }
+      
+      .format-quality {
+        font-size: 0.875rem;
+      }
+      
+      .format-type {
+        font-size: 0.75rem;
+      }
     }
   </style>
 </head>
@@ -442,7 +501,8 @@ def index():
                     ydl.params.update({
                         'quiet': False,
                         'no_warnings': False,
-                        'extract_flat': False
+                        'extract_flat': False,
+                        'format': 'best'  # This ensures we get all formats
                     })
                     
                     info_dict = ydl.extract_info(video_url, download=False)
@@ -465,7 +525,7 @@ def index():
                     # Debug: Print format count and details
                     print(f"Total formats found: {len(formats)}")
                     print("Sample formats:")
-                    for f in formats[:10]:  # Print first 10 formats for debugging
+                    for f in formats[:15]:  # Print first 15 formats for debugging
                         print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
                     
                     return render_template_string(HTML_TEMPLATE, 
@@ -492,28 +552,55 @@ def download():
         if not all([video_url, save_path, format_id]):
             return "Missing required parameters", 400
         
-        # Create the directory if it doesn't exist
-        try:
-            os.makedirs(save_path, exist_ok=True)
-        except Exception as e:
-            return f"Error creating directory: {str(e)}", 500
+        # Use temporary directory for deployed platforms
+        temp_dir = tempfile.mkdtemp()
         
         ydl_opts = {
-            "outtmpl": os.path.join(save_path, "%(title)s.%(ext)s"),
+            "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
             "format": format_id,
+            "quiet": False,
+            "no_warnings": False
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
-                info_dict = ydl.extract_info(video_url, download=True)
+                # First extract info to get filename
+                info_dict = ydl.extract_info(video_url, download=False)
                 if not info_dict:
                     return "Could not fetch video information", 400
                 
+                # Download the video
+                ydl.download([video_url])
+                
+                # Find the downloaded file
                 video_file = ydl.prepare_filename(info_dict)
                 if not os.path.exists(video_file):
-                    return "Download failed", 500
+                    # Try to find the file in temp directory
+                    files = os.listdir(temp_dir)
+                    if files:
+                        video_file = os.path.join(temp_dir, files[0])
+                    else:
+                        return "Download failed - file not found", 500
                 
-                return send_file(video_file, as_attachment=True)
+                # Get filename for download
+                filename = os.path.basename(video_file)
+                
+                # Send file and clean up
+                try:
+                    return send_file(
+                        video_file, 
+                        as_attachment=True,
+                        download_name=filename,
+                        mimetype='application/octet-stream'
+                    )
+                finally:
+                    # Clean up temporary file
+                    try:
+                        os.remove(video_file)
+                        os.rmdir(temp_dir)
+                    except:
+                        pass
+                        
             except yt_dlp.utils.DownloadError as e:
                 return f"Download error: {str(e)}", 500
             except Exception as e:
@@ -572,7 +659,7 @@ def video_formats_with_height(formats, min_height=None, max_height=None):
             if min_height is None and max_height is not None:
                 if height is not None and height < max_height:
                     filtered_formats.append(f)
-            # For specific height ranges
+            # For specific height ranges (like 1080p: 1080 <= height < 2160)
             elif min_height is not None and max_height is not None:
                 if height is not None and min_height <= height < max_height:
                     filtered_formats.append(f)
@@ -585,6 +672,8 @@ def video_formats_with_height(formats, min_height=None, max_height=None):
                 if height is not None:
                     filtered_formats.append(f)
     
+    # Sort by height for better organization
+    filtered_formats.sort(key=lambda x: x.get('height', 0) or 0, reverse=True)
     return filtered_formats
 
 # Add a custom filter to get audio formats
@@ -600,10 +689,10 @@ def audio_formats(formats):
             audio_formats_list.append(f)
     return audio_formats_list
 
-# Add a debug filter to show all formats
-@app.template_filter('all_formats')
-def all_formats(formats):
-    return formats
+# Add a filter to get all video formats (for debugging)
+@app.template_filter('all_video_formats')
+def all_video_formats(formats):
+    return [f for f in formats if f.get('vcodec', 'none') != 'none']
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
