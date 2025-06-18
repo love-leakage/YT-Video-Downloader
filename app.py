@@ -240,6 +240,35 @@ HTML_TEMPLATE = """
     <div class="error-message" role="alert">
       <span class="block sm:inline">{{ error }}</span>
     </div>
+    
+    <!-- Helpful tips for common errors -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+      <h4 class="text-blue-800 font-medium mb-2 flex items-center">
+        <span class="material-icons mr-2 text-sm">lightbulb</span>
+        Troubleshooting Tips
+      </h4>
+      <ul class="text-blue-700 text-sm space-y-1">
+        {% if "403" in error or "Forbidden" in error %}
+        <li>• Try a different YouTube video that is publicly available</li>
+        <li>• Check if the video is age-restricted or region-blocked</li>
+        <li>• Ensure the video is not private or unlisted</li>
+        <li>• Some videos may be restricted due to copyright or content policies</li>
+        {% elif "404" in error %}
+        <li>• Verify the YouTube URL is correct and the video exists</li>
+        <li>• Check if the video has been removed or made private</li>
+        <li>• Try copying the URL directly from YouTube</li>
+        {% elif "unavailable" in error.lower() %}
+        <li>• The video may have been removed or made private</li>
+        <li>• Try a different video that is publicly accessible</li>
+        <li>• Check if the video requires authentication</li>
+        {% else %}
+        <li>• Ensure you're using a valid YouTube URL</li>
+        <li>• Try refreshing the page and entering the URL again</li>
+        <li>• Check your internet connection</li>
+        <li>• Some videos may be temporarily unavailable</li>
+        {% endif %}
+      </ul>
+    </div>
     {% endif %}
 
     <form action="/" method="post" class="space-y-6">
@@ -509,86 +538,199 @@ def index():
             if not video_url or not video_url.startswith(('http://', 'https://')):
                 return render_template_string(HTML_TEMPLATE, error="Please enter a valid YouTube URL")
             
-            with yt_dlp.YoutubeDL() as ydl:
+            # Define extraction strategies
+            extraction_strategies = [
+                # Strategy 1: Full headers with aggressive retries
+                {
+                    'quiet': False,
+                    'no_warnings': False,
+                    'extract_flat': False,
+                    'format': 'best',
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Accept-Charset': 'utf-8',
+                        'DNT': '1',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                        'Sec-Fetch-Dest': 'document',
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-Site': 'none',
+                        'Sec-Fetch-User': '?1',
+                        'Cache-Control': 'max-age=0'
+                    },
+                    'extractor_retries': 5,
+                    'retries': 5,
+                    'fragment_retries': 5,
+                    'skip_unavailable_fragments': True,
+                    'ignoreerrors': False,
+                    'nocheckcertificate': True,
+                    'geo_bypass': True,
+                    'geo_bypass_country': "US"
+                },
+                # Strategy 2: Mobile user agent
+                {
+                    'quiet': False,
+                    'no_warnings': False,
+                    'extract_flat': False,
+                    'format': 'best',
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.5',
+                        'Accept-Encoding': 'gzip, deflate',
+                        'Connection': 'keep-alive',
+                    },
+                    'retries': 3,
+                    'fragment_retries': 3,
+                    'skip_unavailable_fragments': True,
+                    'nocheckcertificate': True,
+                },
+                # Strategy 3: Firefox user agent
+                {
+                    'quiet': False,
+                    'no_warnings': False,
+                    'extract_flat': False,
+                    'format': 'best',
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.5',
+                        'Accept-Encoding': 'gzip, deflate',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                    },
+                    'retries': 3,
+                    'nocheckcertificate': True,
+                },
+                # Strategy 4: Safari user agent
+                {
+                    'quiet': False,
+                    'no_warnings': False,
+                    'extract_flat': False,
+                    'format': 'best',
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.5',
+                        'Accept-Encoding': 'gzip, deflate',
+                        'Connection': 'keep-alive',
+                    },
+                    'retries': 3,
+                    'nocheckcertificate': True,
+                },
+                # Strategy 5: Ultra minimal approach
+                {
+                    'quiet': False,
+                    'no_warnings': False,
+                    'extract_flat': False,
+                    'format': 'best',
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+                        'Accept': '*/*',
+                    },
+                    'retries': 2,
+                    'nocheckcertificate': True,
+                }
+            ]
+            
+            # Try multiple extraction strategies
+            info_dict = None
+            last_error = None
+            
+            for i, strategy in enumerate(extraction_strategies):
                 try:
-                    # Configure yt-dlp to get all available formats with proper headers
-                    ydl.params.update({
-                        'quiet': False,
-                        'no_warnings': False,
-                        'extract_flat': False,
-                        'format': 'best',
-                        'http_headers': {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                            'Accept-Encoding': 'gzip, deflate, br',
-                            'Accept-Charset': 'utf-8',
-                            'DNT': '1',
-                            'Connection': 'keep-alive',
-                            'Upgrade-Insecure-Requests': '1',
-                            'Sec-Fetch-Dest': 'document',
-                            'Sec-Fetch-Mode': 'navigate',
-                            'Sec-Fetch-Site': 'none',
-                            'Sec-Fetch-User': '?1',
-                            'Cache-Control': 'max-age=0'
-                        },
-                        'extractor_retries': 3,
-                        'retries': 3,
-                        'fragment_retries': 3,
-                        'skip_unavailable_fragments': True,
-                        'ignoreerrors': False
-                    })
-                    
-                    info_dict = ydl.extract_info(video_url, download=False)
-                    if not info_dict:
-                        return render_template_string(HTML_TEMPLATE, error="Could not fetch video information. Please check the URL.")
-                    
-                    formats = info_dict.get("formats", [])
-                    if not formats:
-                        return render_template_string(HTML_TEMPLATE, error="No formats available for this video.")
-                    
-                    # Filter out formats without format_id and ensure we have valid formats
-                    formats = [f for f in formats if f.get('format_id')]
-                    
-                    # Include all formats that have either video or audio codec
-                    valid_formats = []
-                    for f in formats:
-                        vcodec = f.get('vcodec', 'none')
-                        acodec = f.get('acodec', 'none')
-                        
-                        # Include if it has video codec (not 'none')
-                        if vcodec != 'none':
-                            valid_formats.append(f)
-                        # Include if it has audio codec (not 'none') and no video
-                        elif acodec != 'none':
-                            valid_formats.append(f)
-                        # Include if it has format_note indicating it's a valid format
-                        elif f.get('format_note'):
-                            valid_formats.append(f)
-                    
-                    formats = valid_formats
-                    
-                    # Sort formats by quality (height first, then filesize)
-                    formats.sort(key=lambda x: (
-                        x.get('height', 0) or 0,
-                        x.get('filesize_approx', 0) or 0
-                    ), reverse=True)
-                    
-                    # Debug: Print format count and details
-                    print(f"Total formats found: {len(formats)}")
-                    print("Sample formats:")
-                    for f in formats[:20]:  # Print first 20 formats for debugging
-                        print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
-                    
-                    return render_template_string(HTML_TEMPLATE, 
-                                                formats=formats, 
-                                                video_url=video_url, 
-                                                save_path=save_path,
-                                                video_title=info_dict.get('title', 'Unknown Title'))
+                    print(f"Trying extraction strategy {i+1}...")
+                    with yt_dlp.YoutubeDL(strategy) as ydl:
+                        info_dict = ydl.extract_info(video_url, download=False)
+                        if info_dict:
+                            print(f"Extraction strategy {i+1} succeeded")
+                            break
                 except yt_dlp.utils.DownloadError as e:
-                    return render_template_string(HTML_TEMPLATE, error=f"Error: {str(e)}")
+                    last_error = e
+                    error_str = str(e)
+                    print(f"Extraction strategy {i+1} failed: {error_str}")
+                    
+                    # Check for specific error types
+                    if "403" in error_str or "Forbidden" in error_str:
+                        print(f"Strategy {i+1}: 403 Forbidden error")
+                    elif "404" in error_str:
+                        print(f"Strategy {i+1}: 404 Not Found error")
+                    elif "Video unavailable" in error_str:
+                        print(f"Strategy {i+1}: Video unavailable")
+                    elif "Private video" in error_str:
+                        print(f"Strategy {i+1}: Private video")
+                    elif "Age-restricted" in error_str:
+                        print(f"Strategy {i+1}: Age-restricted video")
+                    
+                    continue
                 except Exception as e:
-                    return render_template_string(HTML_TEMPLATE, error=f"An error occurred: {str(e)}")
+                    last_error = e
+                    print(f"Extraction strategy {i+1} failed with exception: {e}")
+                    continue
+            
+            if not info_dict:
+                error_msg = str(last_error) if last_error else "Unknown error"
+                
+                if "403" in error_msg or "Forbidden" in error_msg:
+                    return render_template_string(HTML_TEMPLATE, error="Access denied (403). This video may be restricted, age-restricted, or unavailable in your region. Try a different video or check if the video is publicly available.")
+                elif "404" in error_msg:
+                    return render_template_string(HTML_TEMPLATE, error="Video not found (404). Please check the URL and ensure the video is publicly available.")
+                elif "Video unavailable" in error_msg:
+                    return render_template_string(HTML_TEMPLATE, error="This video is unavailable. It may have been removed, made private, or is not accessible.")
+                elif "Private video" in error_msg:
+                    return render_template_string(HTML_TEMPLATE, error="This is a private video and cannot be downloaded.")
+                elif "Age-restricted" in error_msg:
+                    return render_template_string(HTML_TEMPLATE, error="This video is age-restricted and cannot be downloaded without authentication.")
+                elif "Sign in" in error_msg or "login" in error_msg.lower():
+                    return render_template_string(HTML_TEMPLATE, error="This video requires authentication. Please try a different publicly available video.")
+                else:
+                    return render_template_string(HTML_TEMPLATE, error=f"Could not fetch video information. The video may be restricted or unavailable. Error: {error_msg}")
+            
+            formats = info_dict.get("formats", [])
+            if not formats:
+                return render_template_string(HTML_TEMPLATE, error="No formats available for this video.")
+            
+            # Filter out formats without format_id and ensure we have valid formats
+            formats = [f for f in formats if f.get('format_id')]
+            
+            # Include all formats that have either video or audio codec
+            valid_formats = []
+            for f in formats:
+                vcodec = f.get('vcodec', 'none')
+                acodec = f.get('acodec', 'none')
+                
+                # Include if it has video codec (not 'none')
+                if vcodec != 'none':
+                    valid_formats.append(f)
+                # Include if it has audio codec (not 'none') and no video
+                elif acodec != 'none':
+                    valid_formats.append(f)
+                # Include if it has format_note indicating it's a valid format
+                elif f.get('format_note'):
+                    valid_formats.append(f)
+            
+            formats = valid_formats
+            
+            # Sort formats by quality (height first, then filesize)
+            formats.sort(key=lambda x: (
+                x.get('height', 0) or 0,
+                x.get('filesize_approx', 0) or 0
+            ), reverse=True)
+            
+            # Debug: Print format count and details
+            print(f"Total formats found: {len(formats)}")
+            print("Sample formats:")
+            for f in formats[:20]:  # Print first 20 formats for debugging
+                print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
+            
+            return render_template_string(HTML_TEMPLATE, 
+                                        formats=formats, 
+                                        video_url=video_url, 
+                                        save_path=save_path,
+                                        video_title=info_dict.get('title', 'Unknown Title'))
         except Exception as e:
             return render_template_string(HTML_TEMPLATE, error=f"An error occurred: {str(e)}")
     return render_template_string(HTML_TEMPLATE)
@@ -607,9 +749,9 @@ def download():
         # Use temporary directory for deployed platforms
         temp_dir = tempfile.mkdtemp()
         
-        # Define download strategies
+        # Define download strategies with more aggressive configurations
         download_strategies = [
-            # Strategy 1: Full headers without cookies
+            # Strategy 1: Full headers with aggressive retries
             {
                 "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
                 "format": format_id,
@@ -630,20 +772,23 @@ def download():
                     'Sec-Fetch-User': '?1',
                     'Cache-Control': 'max-age=0'
                 },
-                "extractor_retries": 3,
-                "retries": 3,
-                "fragment_retries": 3,
+                "extractor_retries": 5,
+                "retries": 5,
+                "fragment_retries": 5,
                 "skip_unavailable_fragments": True,
-                "ignoreerrors": False
+                "ignoreerrors": False,
+                "nocheckcertificate": True,
+                "geo_bypass": True,
+                "geo_bypass_country": "US"
             },
-            # Strategy 2: Simple headers
+            # Strategy 2: Mobile user agent
             {
                 "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
                 "format": format_id,
                 "quiet": False,
                 "no_warnings": False,
                 "http_headers": {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                     'Accept-Language': 'en-US,en;q=0.5',
                     'Accept-Encoding': 'gzip, deflate',
@@ -652,23 +797,58 @@ def download():
                 "retries": 3,
                 "fragment_retries": 3,
                 "skip_unavailable_fragments": True,
+                "nocheckcertificate": True,
             },
-            # Strategy 3: Best format with different User-Agent
+            # Strategy 3: Firefox user agent
             {
                 "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
-                "format": "best",
+                "format": format_id,
                 "quiet": False,
                 "no_warnings": False,
                 "http_headers": {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                },
+                "retries": 3,
+                "nocheckcertificate": True,
+            },
+            # Strategy 4: Safari user agent
+            {
+                "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
+                "format": format_id,
+                "quiet": False,
+                "no_warnings": False,
+                "http_headers": {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                     'Accept-Language': 'en-US,en;q=0.5',
                     'Accept-Encoding': 'gzip, deflate',
                     'Connection': 'keep-alive',
                 },
                 "retries": 3,
+                "nocheckcertificate": True,
             },
-            # Strategy 4: Minimal headers
+            # Strategy 5: Edge user agent
+            {
+                "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
+                "format": format_id,
+                "quiet": False,
+                "no_warnings": False,
+                "http_headers": {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                },
+                "retries": 3,
+                "nocheckcertificate": True,
+            },
+            # Strategy 6: Fallback to best format with simple headers
             {
                 "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
                 "format": "best",
@@ -681,6 +861,20 @@ def download():
                     'Connection': 'keep-alive',
                 },
                 "retries": 3,
+                "nocheckcertificate": True,
+            },
+            # Strategy 7: Ultra minimal approach
+            {
+                "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
+                "format": "best[height<=720]",
+                "quiet": False,
+                "no_warnings": False,
+                "http_headers": {
+                    'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+                    'Accept': '*/*',
+                },
+                "retries": 2,
+                "nocheckcertificate": True,
             }
         ]
         
@@ -695,6 +889,7 @@ def download():
                     # First extract info to get filename
                     info_dict = ydl.extract_info(video_url, download=False)
                     if not info_dict:
+                        print(f"Strategy {i+1}: Could not extract info")
                         continue
                     
                     # Try to download the video
@@ -708,6 +903,7 @@ def download():
                         if files:
                             video_file = os.path.join(temp_dir, files[0])
                         else:
+                            print(f"Strategy {i+1}: No file found after download")
                             continue
                     
                     # Get filename for download
@@ -733,22 +929,45 @@ def download():
                             
             except yt_dlp.utils.DownloadError as e:
                 last_error = e
-                print(f"Strategy {i+1} failed: {e}")
+                error_str = str(e)
+                print(f"Strategy {i+1} failed: {error_str}")
+                
+                # Check for specific error types
+                if "403" in error_str or "Forbidden" in error_str:
+                    print(f"Strategy {i+1}: 403 Forbidden error")
+                elif "404" in error_str:
+                    print(f"Strategy {i+1}: 404 Not Found error")
+                elif "Video unavailable" in error_str:
+                    print(f"Strategy {i+1}: Video unavailable")
+                elif "Private video" in error_str:
+                    print(f"Strategy {i+1}: Private video")
+                elif "Age-restricted" in error_str:
+                    print(f"Strategy {i+1}: Age-restricted video")
+                
                 continue
             except Exception as e:
                 last_error = e
                 print(f"Strategy {i+1} failed with exception: {e}")
                 continue
         
-        # If all strategies failed
+        # If all strategies failed, provide specific error messages
         if not download_success:
             error_msg = str(last_error) if last_error else "Unknown error"
-            if "403" in error_msg:
-                return "Access denied (403). This video may be restricted or unavailable. Try a different video.", 403
+            
+            if "403" in error_msg or "Forbidden" in error_msg:
+                return "Access denied (403). This video may be restricted, age-restricted, or unavailable in your region. Try a different video or check if the video is publicly available.", 403
             elif "404" in error_msg:
-                return "Video not found (404). Please check the URL.", 404
+                return "Video not found (404). Please check the URL and ensure the video is publicly available.", 404
+            elif "Video unavailable" in error_msg:
+                return "This video is unavailable. It may have been removed, made private, or is not accessible.", 400
+            elif "Private video" in error_msg:
+                return "This is a private video and cannot be downloaded.", 400
+            elif "Age-restricted" in error_msg:
+                return "This video is age-restricted and cannot be downloaded without authentication.", 400
+            elif "Sign in" in error_msg or "login" in error_msg.lower():
+                return "This video requires authentication. Please try a different publicly available video.", 400
             else:
-                return f"All download strategies failed. Last error: {error_msg}", 500
+                return f"All download strategies failed. The video may be restricted or unavailable. Last error: {error_msg}", 500
     except Exception as e:
         return f"An error occurred: {str(e)}", 500
 
