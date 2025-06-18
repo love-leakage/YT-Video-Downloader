@@ -221,7 +221,7 @@ HTML_TEMPLATE = """
         </h3>
         
         <!-- 4K Quality -->
-        {% set has_4k = formats|selectattr('height', '>=', 2160)|list %}
+        {% set has_4k = formats|video_formats_with_height(2160, None)|list %}
         {% if has_4k %}
         <div class="mb-4">
           <h4 class="text-sm font-medium text-gray-600 mb-2">4K Quality</h4>
@@ -243,7 +243,7 @@ HTML_TEMPLATE = """
         {% endif %}
 
         <!-- 1080p Quality -->
-        {% set has_1080p = formats|selectattr('height', '>=', 1080)|selectattr('height', '<', 2160)|list %}
+        {% set has_1080p = formats|video_formats_with_height(1080, 2160)|list %}
         {% if has_1080p %}
         <div class="mb-4">
           <h4 class="text-sm font-medium text-gray-600 mb-2">Full HD</h4>
@@ -265,7 +265,7 @@ HTML_TEMPLATE = """
         {% endif %}
 
         <!-- 720p Quality -->
-        {% set has_720p = formats|selectattr('height', '>=', 720)|selectattr('height', '<', 1080)|list %}
+        {% set has_720p = formats|video_formats_with_height(720, 1080)|list %}
         {% if has_720p %}
         <div class="mb-4">
           <h4 class="text-sm font-medium text-gray-600 mb-2">HD</h4>
@@ -287,7 +287,7 @@ HTML_TEMPLATE = """
         {% endif %}
 
         <!-- Lower Qualities -->
-        {% set lower_qualities = formats|selectattr('height', '<', 720)|selectattr('vcodec', '!=', 'none')|list %}
+        {% set lower_qualities = formats|video_formats_with_height(None, 720)|list %}
         {% if lower_qualities %}
         <div class="mb-4">
           <h4 class="text-sm font-medium text-gray-600 mb-2">Standard Quality</h4>
@@ -316,19 +316,17 @@ HTML_TEMPLATE = """
           Audio Formats
         </h3>
         <div class="format-grid">
-          {% for f in formats %}
-            {% if f.get('vcodec', 'none') == 'none' and f.get('acodec', 'none') != 'none' %}
-            <label class="format-option" onclick="selectFormat(this)">
-              <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-              <div class="format-info">
-                <div class="flex items-center justify-between">
-                  <span class="format-quality">{{ f.get('format_note', '') }}</span>
-                  <span class="quality-badge audio-quality">Audio</span>
-                </div>
-                <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
+          {% for f in formats|audio_formats %}
+          <label class="format-option" onclick="selectFormat(this)">
+            <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+            <div class="format-info">
+              <div class="flex items-center justify-between">
+                <span class="format-quality">{{ f.get('format_note', '') }}</span>
+                <span class="quality-badge audio-quality">Audio</span>
               </div>
-            </label>
-            {% endif %}
+              <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
+            </div>
+          </label>
           {% endfor %}
         </div>
       </div>
@@ -465,6 +463,31 @@ def filesizeformat(value):
         return f"{value:.1f} TB"
     except:
         return 'N/A'
+
+# Add a custom filter for safe height comparison
+@app.template_filter('has_height')
+def has_height(format_dict, min_height=None, max_height=None):
+    height = format_dict.get('height')
+    if height is None:
+        return False
+    
+    if min_height is not None and height < min_height:
+        return False
+    
+    if max_height is not None and height >= max_height:
+        return False
+    
+    return True
+
+# Add a custom filter to get video formats with height
+@app.template_filter('video_formats_with_height')
+def video_formats_with_height(formats, min_height=None, max_height=None):
+    return [f for f in formats if has_height(f, min_height, max_height) and f.get('vcodec', 'none') != 'none']
+
+# Add a custom filter to get audio formats
+@app.template_filter('audio_formats')
+def audio_formats(formats):
+    return [f for f in formats if f.get('vcodec', 'none') == 'none' and f.get('acodec', 'none') != 'none']
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
