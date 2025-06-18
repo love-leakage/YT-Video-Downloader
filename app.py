@@ -277,192 +277,33 @@ HTML_TEMPLATE = """
       <input type="hidden" name="video_url" value="{{ video_url }}">
       <input type="hidden" name="save_path" id="download_path" value="{{ save_path }}">
       
-      <!-- Video Formats -->
-      <div class="format-section">
-        <h3 class="format-section-title">
-          <span class="material-icons mr-2">videocam</span>
-          Video Formats
-        </h3>
-        
-        <!-- 4K Quality -->
-        {% set has_4k = formats|video_formats_with_height(2160, None)|list %}
-        {% if has_4k %}
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-600 mb-2">4K Quality ({{ has_4k|length }} formats)</h4>
-          <div class="format-grid">
-            {% for f in has_4k %}
-            <label class="format-option" onclick="selectFormat(this)">
-              <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-              <div class="format-info">
-                <div class="flex items-center justify-between">
-                  <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
-                  <span class="quality-badge quality-4k">4K</span>
-                </div>
-                <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-              </div>
-            </label>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- 1080p Quality -->
-        {% set has_1080p = formats|video_formats_with_height(1080, 2160)|list %}
-        {% if has_1080p %}
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-600 mb-2">Full HD ({{ has_1080p|length }} formats)</h4>
-          <div class="format-grid">
-            {% for f in has_1080p %}
-            <label class="format-option" onclick="selectFormat(this)">
-              <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-              <div class="format-info">
-                <div class="flex items-center justify-between">
-                  <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
-                  <span class="quality-badge quality-1080p">1080p</span>
-                </div>
-                <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-              </div>
-            </label>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- 720p Quality -->
-        {% set has_720p = formats|video_formats_with_height(720, 1080)|list %}
-        {% if has_720p %}
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-600 mb-2">HD ({{ has_720p|length }} formats)</h4>
-          <div class="format-grid">
-            {% for f in has_720p %}
-            <label class="format-option" onclick="selectFormat(this)">
-              <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-              <div class="format-info">
-                <div class="flex items-center justify-between">
-                  <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
-                  <span class="quality-badge quality-720p">720p</span>
-                </div>
-                <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-              </div>
-            </label>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- Lower Qualities -->
-        {% set lower_qualities = formats|video_formats_with_height(None, 720)|list %}
-        {% if lower_qualities %}
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-600 mb-2">Standard Quality ({{ lower_qualities|length }} formats)</h4>
-          <div class="format-grid">
-            {% for f in lower_qualities %}
-            <label class="format-option" onclick="selectFormat(this)">
-              <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-              <div class="format-info">
-                <div class="flex items-center justify-between">
-                  <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
-                  <span class="quality-badge quality-{{ f.get('height', 0) }}p">{{ f.get('height', 'N/A') }}p</span>
-                </div>
-                <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-              </div>
-            </label>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-      </div>
-
-      <!-- Audio Formats -->
-      <div class="format-section">
-        <h3 class="format-section-title">
-          <span class="material-icons mr-2">audiotrack</span>
-          Audio Formats
-        </h3>
-        <div class="format-grid">
-          {% for f in formats|audio_formats %}
-          <label class="format-option" onclick="selectFormat(this)">
-            <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-            <div class="format-info">
-              <div class="flex items-center justify-between">
-                <span class="format-quality">{{ f.get('format_note', '') }}</span>
-                <span class="quality-badge audio-quality">Audio</span>
-              </div>
-              <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-            </div>
-          </label>
-          {% endfor %}
-        </div>
-      </div>
-
-      <!-- Debug: Show all formats if no formats are displayed -->
-      {% set total_displayed = (has_4k|length) + (has_1080p|length) + (has_720p|length) + (lower_qualities|length) + (formats|audio_formats|length) %}
-      {% if total_displayed == 0 %}
-      <div class="format-section">
-        <h3 class="format-section-title">
-          <span class="material-icons mr-2">bug_report</span>
-          All Available Formats (Debug)
-        </h3>
-        <div class="format-grid">
-          {% for f in formats %}
-          <label class="format-option" onclick="selectFormat(this)">
-            <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-            <div class="format-info">
-              <div class="flex items-center justify-between">
-                <span class="format-quality">{{ f.get('height', 'N/A') }}p - {{ f.get('format_note', '') }}</span>
-                <span class="quality-badge audio-quality">{{ f.get('vcodec', 'none') }}/{{ f.get('acodec', 'none') }}</span>
-              </div>
-              <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-            </div>
-          </label>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      <!-- Alternative: Show all formats in a simple list -->
-      {% if total_displayed < 3 %}
-      <div class="format-section">
-        <h3 class="format-section-title">
-          <span class="material-icons mr-2">list</span>
-          All Available Formats
-        </h3>
-        <div class="format-grid">
-          {% for f in formats %}
-          <label class="format-option" onclick="selectFormat(this)">
-            <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-            <div class="format-info">
-              <div class="flex items-center justify-between">
-                <span class="format-quality">{{ f.get('height', 'N/A') }}p - {{ f.get('format_note', '') }}</span>
-                <span class="quality-badge {% if f.get('vcodec', 'none') != 'none' %}quality-{{ f.get('height', 0) }}p{% else %}audio-quality{% endif %}">
-                  {% if f.get('vcodec', 'none') != 'none' %}{{ f.get('height', 'N/A') }}p{% else %}Audio{% endif %}
-                </span>
-              </div>
-              <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-            </div>
-          </label>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      <!-- Comprehensive Format Display -->
+      <!-- All Available Formats -->
       <div class="format-section">
         <h3 class="format-section-title">
           <span class="material-icons mr-2">grid_view</span>
-          All Formats ({{ formats|length }} available)
+          Available Download Formats ({{ formats|length }})
         </h3>
+        
         <div class="format-grid">
           {% for f in formats %}
           <label class="format-option" onclick="selectFormat(this)">
             <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
             <div class="format-info">
-              <div class="flex items-center justify-between">
-                <span class="format-quality">
-                  {% if f.get('height') %}{{ f.get('height') }}p{% else %}N/A{% endif %} 
-                  {% if f.get('format_note') %}- {{ f.get('format_note') }}{% endif %}
+              <div class="flex items-center justify-between mb-1">
+                <span class="format-quality font-medium">
+                  {% if f.get('height') %}{{ f.get('height') }}p{% else %}N/A{% endif %}
+                  {% if f.get('format_note') %} - {{ f.get('format_note') }}{% endif %}
                 </span>
-                <span class="quality-badge {% if f.get('vcodec', 'none') != 'none' %}quality-{{ f.get('height', 0) }}p{% else %}audio-quality{% endif %}">
+                <span class="quality-badge 
+                  {% if f.get('vcodec', 'none') != 'none' %}
+                    {% if f.get('height', 0) >= 2160 %}quality-4k
+                    {% elif f.get('height', 0) >= 1080 %}quality-1080p
+                    {% elif f.get('height', 0) >= 720 %}quality-720p
+                    {% elif f.get('height', 0) >= 480 %}quality-480p
+                    {% elif f.get('height', 0) >= 360 %}quality-360p
+                    {% elif f.get('height', 0) >= 240 %}quality-240p
+                    {% else %}quality-240p{% endif %}
+                  {% else %}audio-quality{% endif %}">
                   {% if f.get('vcodec', 'none') != 'none' %}
                     {% if f.get('height', 0) >= 2160 %}4K
                     {% elif f.get('height', 0) >= 1080 %}1080p
@@ -474,13 +315,135 @@ HTML_TEMPLATE = """
                   {% else %}Audio{% endif %}
                 </span>
               </div>
-              <span class="format-type">
+              <span class="format-type text-xs text-gray-600">
                 {{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}
                 {% if f.get('vcodec', 'none') != 'none' and f.get('acodec', 'none') != 'none' %} (Video+Audio){% endif %}
+                {% if f.get('vcodec', 'none') != 'none' and f.get('acodec', 'none') == 'none' %} (Video Only){% endif %}
               </span>
             </div>
           </label>
           {% endfor %}
+        </div>
+      </div>
+
+      <!-- Quality Categories (Collapsible) -->
+      <div class="format-section mt-6">
+        <h3 class="format-section-title cursor-pointer" onclick="toggleCategories()">
+          <span class="material-icons mr-2">category</span>
+          Quality Categories
+          <span class="material-icons ml-auto transform transition-transform" id="category-arrow">expand_more</span>
+        </h3>
+        
+        <div id="quality-categories" class="hidden">
+          <!-- 4K Quality -->
+          {% set has_4k = formats|video_formats_with_height(2160, None)|list %}
+          {% if has_4k %}
+          <div class="mb-4">
+            <h4 class="text-sm font-medium text-gray-600 mb-2">4K Quality ({{ has_4k|length }} formats)</h4>
+            <div class="format-grid">
+              {% for f in has_4k %}
+              <label class="format-option" onclick="selectFormat(this)">
+                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+                <div class="format-info">
+                  <div class="flex items-center justify-between">
+                    <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
+                    <span class="quality-badge quality-4k">4K</span>
+                  </div>
+                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- 1080p Quality -->
+          {% set has_1080p = formats|video_formats_with_height(1080, 2160)|list %}
+          {% if has_1080p %}
+          <div class="mb-4">
+            <h4 class="text-sm font-medium text-gray-600 mb-2">Full HD ({{ has_1080p|length }} formats)</h4>
+            <div class="format-grid">
+              {% for f in has_1080p %}
+              <label class="format-option" onclick="selectFormat(this)">
+                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+                <div class="format-info">
+                  <div class="flex items-center justify-between">
+                    <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
+                    <span class="quality-badge quality-1080p">1080p</span>
+                  </div>
+                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- 720p Quality -->
+          {% set has_720p = formats|video_formats_with_height(720, 1080)|list %}
+          {% if has_720p %}
+          <div class="mb-4">
+            <h4 class="text-sm font-medium text-gray-600 mb-2">HD ({{ has_720p|length }} formats)</h4>
+            <div class="format-grid">
+              {% for f in has_720p %}
+              <label class="format-option" onclick="selectFormat(this)">
+                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+                <div class="format-info">
+                  <div class="flex items-center justify-between">
+                    <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
+                    <span class="quality-badge quality-720p">720p</span>
+                  </div>
+                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Lower Qualities -->
+          {% set lower_qualities = formats|video_formats_with_height(None, 720)|list %}
+          {% if lower_qualities %}
+          <div class="mb-4">
+            <h4 class="text-sm font-medium text-gray-600 mb-2">Standard Quality ({{ lower_qualities|length }} formats)</h4>
+            <div class="format-grid">
+              {% for f in lower_qualities %}
+              <label class="format-option" onclick="selectFormat(this)">
+                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+                <div class="format-info">
+                  <div class="flex items-center justify-between">
+                    <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
+                    <span class="quality-badge quality-{{ f.get('height', 0) }}p">{{ f.get('height', 'N/A') }}p</span>
+                  </div>
+                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Audio Formats -->
+          {% set audio_formats = formats|audio_formats|list %}
+          {% if audio_formats %}
+          <div class="mb-4">
+            <h4 class="text-sm font-medium text-gray-600 mb-2">Audio Formats ({{ audio_formats|length }} formats)</h4>
+            <div class="format-grid">
+              {% for f in audio_formats %}
+              <label class="format-option" onclick="selectFormat(this)">
+                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+                <div class="format-info">
+                  <div class="flex items-center justify-between">
+                    <span class="format-quality">{{ f.get('format_note', 'Audio') }}</span>
+                    <span class="quality-badge audio-quality">Audio</span>
+                  </div>
+                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
         </div>
       </div>
 
@@ -498,6 +461,19 @@ HTML_TEMPLATE = """
       });
       label.classList.add('selected');
       label.querySelector('input[type="radio"]').checked = true;
+    }
+
+    function toggleCategories() {
+      const categories = document.getElementById('quality-categories');
+      const arrow = document.getElementById('category-arrow');
+      
+      if (categories.classList.contains('hidden')) {
+        categories.classList.remove('hidden');
+        arrow.style.transform = 'rotate(180deg)';
+      } else {
+        categories.classList.add('hidden');
+        arrow.style.transform = 'rotate(0deg)';
+      }
     }
 
     function selectFolder() {
@@ -761,12 +737,34 @@ def audio_formats(formats):
         # Also include formats with both video and audio but marked as audio
         elif f.get('format_note', '').lower().find('audio') != -1:
             audio_formats_list.append(f)
+        # Include formats with audio codec and no video codec
+        elif f.get('acodec', 'none') != 'none' and f.get('vcodec', 'none') == 'none':
+            audio_formats_list.append(f)
     return audio_formats_list
 
 # Add a filter to get all video formats (for debugging)
 @app.template_filter('all_video_formats')
 def all_video_formats(formats):
     return [f for f in formats if f.get('vcodec', 'none') != 'none']
+
+# Add a filter to get formats by quality range
+@app.template_filter('formats_by_quality')
+def formats_by_quality(formats, quality_range):
+    quality_ranges = {
+        '4k': (2160, None),
+        '1080p': (1080, 2160),
+        '720p': (720, 1080),
+        '480p': (480, 720),
+        '360p': (360, 480),
+        '240p': (240, 360),
+        '144p': (144, 240)
+    }
+    
+    if quality_range not in quality_ranges:
+        return []
+    
+    min_height, max_height = quality_ranges[quality_range]
+    return video_formats_with_height(formats, min_height, max_height)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
