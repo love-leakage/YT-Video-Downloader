@@ -1,4 +1,4 @@
-# Seal YouTube Video Downloader
+# DockTube Downloader
 
 A beautiful web application to download YouTube videos in various formats and qualities.
 
