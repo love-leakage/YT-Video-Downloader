@@ -532,7 +532,6 @@ def index():
                             'Sec-Fetch-User': '?1',
                             'Cache-Control': 'max-age=0'
                         },
-                        'cookiesfrombrowser': ("chrome",),
                         'extractor_retries': 3,
                         'retries': 3,
                         'fragment_retries': 3,
@@ -610,7 +609,7 @@ def download():
         
         # Define download strategies
         download_strategies = [
-            # Strategy 1: Full headers with cookies
+            # Strategy 1: Full headers without cookies
             {
                 "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
                 "format": format_id,
@@ -631,14 +630,13 @@ def download():
                     'Sec-Fetch-User': '?1',
                     'Cache-Control': 'max-age=0'
                 },
-                "cookiesfrombrowser": ("chrome",),
                 "extractor_retries": 3,
                 "retries": 3,
                 "fragment_retries": 3,
                 "skip_unavailable_fragments": True,
                 "ignoreerrors": False
             },
-            # Strategy 2: Simple headers without cookies
+            # Strategy 2: Simple headers
             {
                 "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
                 "format": format_id,
@@ -655,7 +653,7 @@ def download():
                 "fragment_retries": 3,
                 "skip_unavailable_fragments": True,
             },
-            # Strategy 3: Best format with simple headers
+            # Strategy 3: Best format with different User-Agent
             {
                 "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
                 "format": "best",
@@ -666,6 +664,20 @@ def download():
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                     'Accept-Language': 'en-US,en;q=0.5',
                     'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                },
+                "retries": 3,
+            },
+            # Strategy 4: Minimal headers
+            {
+                "outtmpl": os.path.join(temp_dir, "%(title)s.%(ext)s"),
+                "format": "best",
+                "quiet": False,
+                "no_warnings": False,
+                "http_headers": {
+                    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.5',
                     'Connection': 'keep-alive',
                 },
                 "retries": 3,
