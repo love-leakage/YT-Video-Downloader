@@ -209,6 +209,11 @@ HTML_TEMPLATE = """
     </div>
     {% endif %}
     
+    <!-- Debug: Show total formats count -->
+    <div class="text-sm text-gray-500 mb-4 text-center">
+      Total formats available: {{ formats|length }}
+    </div>
+    
     <form action="/download" method="post" class="mt-8">
       <input type="hidden" name="video_url" value="{{ video_url }}">
       <input type="hidden" name="save_path" id="download_path" value="{{ save_path }}">
@@ -224,7 +229,7 @@ HTML_TEMPLATE = """
         {% set has_4k = formats|video_formats_with_height(2160, None)|list %}
         {% if has_4k %}
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-600 mb-2">4K Quality</h4>
+          <h4 class="text-sm font-medium text-gray-600 mb-2">4K Quality ({{ has_4k|length }} formats)</h4>
           <div class="format-grid">
             {% for f in has_4k %}
             <label class="format-option" onclick="selectFormat(this)">
@@ -246,7 +251,7 @@ HTML_TEMPLATE = """
         {% set has_1080p = formats|video_formats_with_height(1080, 2160)|list %}
         {% if has_1080p %}
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-600 mb-2">Full HD</h4>
+          <h4 class="text-sm font-medium text-gray-600 mb-2">Full HD ({{ has_1080p|length }} formats)</h4>
           <div class="format-grid">
             {% for f in has_1080p %}
             <label class="format-option" onclick="selectFormat(this)">
@@ -268,7 +273,7 @@ HTML_TEMPLATE = """
         {% set has_720p = formats|video_formats_with_height(720, 1080)|list %}
         {% if has_720p %}
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-600 mb-2">HD</h4>
+          <h4 class="text-sm font-medium text-gray-600 mb-2">HD ({{ has_720p|length }} formats)</h4>
           <div class="format-grid">
             {% for f in has_720p %}
             <label class="format-option" onclick="selectFormat(this)">
@@ -290,7 +295,7 @@ HTML_TEMPLATE = """
         {% set lower_qualities = formats|video_formats_with_height(None, 720)|list %}
         {% if lower_qualities %}
         <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-600 mb-2">Standard Quality</h4>
+          <h4 class="text-sm font-medium text-gray-600 mb-2">Standard Quality ({{ lower_qualities|length }} formats)</h4>
           <div class="format-grid">
             {% for f in lower_qualities %}
             <label class="format-option" onclick="selectFormat(this)">
@@ -330,6 +335,31 @@ HTML_TEMPLATE = """
           {% endfor %}
         </div>
       </div>
+
+      <!-- Debug: Show all formats if no formats are displayed -->
+      {% set total_displayed = (has_4k|length) + (has_1080p|length) + (has_720p|length) + (lower_qualities|length) + (formats|audio_formats|length) %}
+      {% if total_displayed == 0 %}
+      <div class="format-section">
+        <h3 class="format-section-title">
+          <span class="material-icons mr-2">bug_report</span>
+          All Available Formats (Debug)
+        </h3>
+        <div class="format-grid">
+          {% for f in formats %}
+          <label class="format-option" onclick="selectFormat(this)">
+            <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+            <div class="format-info">
+              <div class="flex items-center justify-between">
+                <span class="format-quality">{{ f.get('height', 'N/A') }}p - {{ f.get('format_note', '') }}</span>
+                <span class="quality-badge audio-quality">{{ f.get('vcodec', 'none') }}/{{ f.get('acodec', 'none') }}</span>
+              </div>
+              <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
 
       <button type="submit" class="custom-button custom-button-green mt-6">
         <span class="material-icons mr-2">file_download</span> Download Selected Format
@@ -382,6 +412,14 @@ def index():
             
             with yt_dlp.YoutubeDL() as ydl:
                 try:
+                    # Configure yt-dlp to get more formats
+                    ydl.params.update({
+                        'format': 'bestvideo+bestaudio/best',
+                        'listformats': True,
+                        'quiet': False,
+                        'no_warnings': False
+                    })
+                    
                     info_dict = ydl.extract_info(video_url, download=False)
                     if not info_dict:
                         return render_template_string(HTML_TEMPLATE, error="Could not fetch video information. Please check the URL.")
@@ -390,11 +428,19 @@ def index():
                     if not formats:
                         return render_template_string(HTML_TEMPLATE, error="No formats available for this video.")
                     
-                    # Sort formats by quality
+                    # Filter out formats without format_id
+                    formats = [f for f in formats if f.get('format_id')]
+                    
+                    # Sort formats by quality (height first, then filesize)
                     formats.sort(key=lambda x: (
                         x.get('height', 0) or 0,
                         x.get('filesize_approx', 0) or 0
                     ), reverse=True)
+                    
+                    # Debug: Print format count
+                    print(f"Total formats found: {len(formats)}")
+                    for f in formats[:5]:  # Print first 5 formats for debugging
+                        print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')}")
                     
                     return render_template_string(HTML_TEMPLATE, 
                                                 formats=formats, 
@@ -468,12 +514,20 @@ def filesizeformat(value):
 @app.template_filter('has_height')
 def has_height(format_dict, min_height=None, max_height=None):
     height = format_dict.get('height')
+    
+    # If no height filter is specified, include all formats with any height
+    if min_height is None and max_height is None:
+        return height is not None
+    
+    # If height is None, exclude it
     if height is None:
         return False
     
+    # Check min height
     if min_height is not None and height < min_height:
         return False
     
+    # Check max height
     if max_height is not None and height >= max_height:
         return False
     
@@ -482,12 +536,29 @@ def has_height(format_dict, min_height=None, max_height=None):
 # Add a custom filter to get video formats with height
 @app.template_filter('video_formats_with_height')
 def video_formats_with_height(formats, min_height=None, max_height=None):
-    return [f for f in formats if has_height(f, min_height, max_height) and f.get('vcodec', 'none') != 'none']
+    filtered_formats = []
+    for f in formats:
+        # Check if it's a video format (has video codec)
+        if f.get('vcodec', 'none') != 'none':
+            # For lower qualities, include formats with any height
+            if min_height is None and max_height is not None:
+                height = f.get('height')
+                if height is not None and height < max_height:
+                    filtered_formats.append(f)
+            # For specific height ranges
+            elif has_height(f, min_height, max_height):
+                filtered_formats.append(f)
+    return filtered_formats
 
 # Add a custom filter to get audio formats
 @app.template_filter('audio_formats')
 def audio_formats(formats):
     return [f for f in formats if f.get('vcodec', 'none') == 'none' and f.get('acodec', 'none') != 'none']
+
+# Add a debug filter to show all formats
+@app.template_filter('all_formats')
+def all_formats(formats):
+    return formats
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
