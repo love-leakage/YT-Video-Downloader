@@ -210,21 +210,30 @@ HTML_TEMPLATE = """
     /* Mobile-specific improvements */
     @media (max-width: 640px) {
       .container {
-        margin: 0.5rem;
-        padding: 1rem;
+        margin: 0.25rem;
+        padding: 0.5rem;
       }
-      
+      .custom-button, .custom-input {
+        font-size: 18px;
+        padding: 1rem 0.5rem;
+      }
       .format-option {
-        padding: 0.75rem;
-        min-height: 50px;
+        padding: 1rem;
+        min-height: 60px;
+        font-size: 1rem;
       }
-      
-      .format-quality {
-        font-size: 0.875rem;
+      .format-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem;
       }
-      
-      .format-type {
-        font-size: 0.75rem;
+      .title-text {
+        font-size: 1.5rem;
+      }
+      .title-icon {
+        font-size: 2.5rem;
+      }
+      .video-title {
+        font-size: 1.1rem;
       }
     }
   </style>
@@ -556,10 +565,9 @@ def index():
             audio_formats.sort(key=lambda x: (x.get('abr', 0) or 0, x.get('filesize_approx', 0) or 0), reverse=True)
             
             # Debug: Print format count and details
-            print(f"Total formats found: {len(formats)}")
-            print("Sample formats:")
-            for f in formats[:20]:  # Print first 20 formats for debugging
-                print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
+            print(f"Total formats found: {len(formats)} (filtered)")
+            for f in formats:
+                print(f"Format: {f.get('format_id')} - {f.get('height', 'N/A')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
             
             return render_template_string(HTML_TEMPLATE,
                                         formats=formats,
