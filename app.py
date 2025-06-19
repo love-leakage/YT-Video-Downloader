@@ -276,15 +276,6 @@ HTML_TEMPLATE = """
         <span class="material-icons text-gray-500 mr-2">link</span>
         <input type="url" name="video_url" placeholder="Enter YouTube URL" required class="custom-input" value="{{ video_url if video_url else '' }}" />
       </div>
-      <div class="folder-input-group">
-        <div class="flex items-center border-2 border-gray-200 rounded-lg px-4 py-2 focus-within:border-indigo-500 transition-all duration-300">
-          <span class="material-icons text-gray-500 mr-2">folder</span>
-          <input type="text" name="save_path" id="save_path" placeholder="Select Download Location" value="{{ save_path if save_path else 'downloads' }}" required class="custom-input" readonly />
-          <button type="button" class="folder-button" onclick="selectFolder()">
-            <span class="material-icons">folder_open</span>
-          </button>
-        </div>
-      </div>
       <button type="submit" class="custom-button custom-button-blue">
         <span class="material-icons mr-2">download</span> Fetch Formats
       </button>
@@ -304,17 +295,15 @@ HTML_TEMPLATE = """
     
     <form action="/download" method="post" class="mt-8">
       <input type="hidden" name="video_url" value="{{ video_url }}">
-      <input type="hidden" name="save_path" id="download_path" value="{{ save_path }}">
       
-      <!-- All Available Formats -->
+      <!-- Only show Video+Audio and Audio formats -->
       <div class="format-section">
         <h3 class="format-section-title">
           <span class="material-icons mr-2">grid_view</span>
-          Available Download Formats ({{ formats|length }})
+          Video + Audio Quality Variations
         </h3>
-        
         <div class="format-grid">
-          {% for f in formats %}
+          {% for f in formats|video_audio_formats %}
           <label class="format-option" onclick="selectFormat(this)">
             <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
             <div class="format-info">
@@ -323,156 +312,40 @@ HTML_TEMPLATE = """
                   {% if f.get('height') %}{{ f.get('height') }}p{% else %}N/A{% endif %}
                   {% if f.get('format_note') %} - {{ f.get('format_note') }}{% endif %}
                 </span>
-                <span class="quality-badge 
-                  {% if f.get('vcodec', 'none') != 'none' %}
-                    {% if f.get('height', 0) >= 2160 %}quality-4k
-                    {% elif f.get('height', 0) >= 1080 %}quality-1080p
-                    {% elif f.get('height', 0) >= 720 %}quality-720p
-                    {% elif f.get('height', 0) >= 480 %}quality-480p
-                    {% elif f.get('height', 0) >= 360 %}quality-360p
-                    {% elif f.get('height', 0) >= 240 %}quality-240p
-                    {% else %}quality-240p{% endif %}
-                  {% else %}audio-quality{% endif %}">
-                  {% if f.get('vcodec', 'none') != 'none' %}
-                    {% if f.get('height', 0) >= 2160 %}4K
-                    {% elif f.get('height', 0) >= 1080 %}1080p
-                    {% elif f.get('height', 0) >= 720 %}720p
-                    {% elif f.get('height', 0) >= 480 %}480p
-                    {% elif f.get('height', 0) >= 360 %}360p
-                    {% elif f.get('height', 0) >= 240 %}240p
-                    {% else %}{{ f.get('height', 'N/A') }}p{% endif %}
-                  {% else %}Audio{% endif %}
+                <span class="quality-badge">
+                  Video+Audio
                 </span>
               </div>
               <span class="format-type text-xs text-gray-600">
                 {{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}
-                {% if f.get('vcodec', 'none') != 'none' and f.get('acodec', 'none') != 'none' %} (Video+Audio){% endif %}
-                {% if f.get('vcodec', 'none') != 'none' and f.get('acodec', 'none') == 'none' %} (Video Only){% endif %}
               </span>
             </div>
           </label>
           {% endfor %}
         </div>
       </div>
-
-      <!-- Quality Categories (Collapsible) -->
-      <div class="format-section mt-6">
-        <h3 class="format-section-title cursor-pointer" onclick="toggleCategories()">
-          <span class="material-icons mr-2">category</span>
-          Quality Categories
-          <span class="material-icons ml-auto transform transition-transform" id="category-arrow">expand_more</span>
+      <div class="format-section">
+        <h3 class="format-section-title">
+          <span class="material-icons mr-2">music_note</span>
+          Audio Quality Variations
         </h3>
-        
-        <div id="quality-categories" class="hidden">
-          <!-- 4K Quality -->
-          {% set has_4k = formats|video_formats_with_height(2160, None)|list %}
-          {% if has_4k %}
-          <div class="mb-4">
-            <h4 class="text-sm font-medium text-gray-600 mb-2">4K Quality ({{ has_4k|length }} formats)</h4>
-            <div class="format-grid">
-              {% for f in has_4k %}
-              <label class="format-option" onclick="selectFormat(this)">
-                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-                <div class="format-info">
-                  <div class="flex items-center justify-between">
-                    <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
-                    <span class="quality-badge quality-4k">4K</span>
-                  </div>
-                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-                </div>
-              </label>
-              {% endfor %}
+        <div class="format-grid">
+          {% for f in formats|audio_formats %}
+          <label class="format-option" onclick="selectFormat(this)">
+            <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
+            <div class="format-info">
+              <div class="flex items-center justify-between mb-1">
+                <span class="format-quality font-medium">
+                  {{ f.get('format_note', 'Audio') }}
+                </span>
+                <span class="quality-badge audio-quality">Audio</span>
+              </div>
+              <span class="format-type text-xs text-gray-600">
+                {{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}
+              </span>
             </div>
-          </div>
-          {% endif %}
-
-          <!-- 1080p Quality -->
-          {% set has_1080p = formats|video_formats_with_height(1080, 2160)|list %}
-          {% if has_1080p %}
-          <div class="mb-4">
-            <h4 class="text-sm font-medium text-gray-600 mb-2">Full HD ({{ has_1080p|length }} formats)</h4>
-            <div class="format-grid">
-              {% for f in has_1080p %}
-              <label class="format-option" onclick="selectFormat(this)">
-                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-                <div class="format-info">
-                  <div class="flex items-center justify-between">
-                    <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
-                    <span class="quality-badge quality-1080p">1080p</span>
-                  </div>
-                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-                </div>
-              </label>
-              {% endfor %}
-            </div>
-          </div>
-          {% endif %}
-
-          <!-- 720p Quality -->
-          {% set has_720p = formats|video_formats_with_height(720, 1080)|list %}
-          {% if has_720p %}
-          <div class="mb-4">
-            <h4 class="text-sm font-medium text-gray-600 mb-2">HD ({{ has_720p|length }} formats)</h4>
-            <div class="format-grid">
-              {% for f in has_720p %}
-              <label class="format-option" onclick="selectFormat(this)">
-                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-                <div class="format-info">
-                  <div class="flex items-center justify-between">
-                    <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
-                    <span class="quality-badge quality-720p">720p</span>
-                  </div>
-                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-                </div>
-              </label>
-              {% endfor %}
-            </div>
-          </div>
-          {% endif %}
-
-          <!-- Lower Qualities -->
-          {% set lower_qualities = formats|video_formats_with_height(None, 720)|list %}
-          {% if lower_qualities %}
-          <div class="mb-4">
-            <h4 class="text-sm font-medium text-gray-600 mb-2">Standard Quality ({{ lower_qualities|length }} formats)</h4>
-            <div class="format-grid">
-              {% for f in lower_qualities %}
-              <label class="format-option" onclick="selectFormat(this)">
-                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-                <div class="format-info">
-                  <div class="flex items-center justify-between">
-                    <span class="format-quality">{{ f.get('height', 'N/A') }}p</span>
-                    <span class="quality-badge quality-{{ f.get('height', 0) }}p">{{ f.get('height', 'N/A') }}p</span>
-                  </div>
-                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-                </div>
-              </label>
-              {% endfor %}
-            </div>
-          </div>
-          {% endif %}
-
-          <!-- Audio Formats -->
-          {% set audio_formats = formats|audio_formats|list %}
-          {% if audio_formats %}
-          <div class="mb-4">
-            <h4 class="text-sm font-medium text-gray-600 mb-2">Audio Formats ({{ audio_formats|length }} formats)</h4>
-            <div class="format-grid">
-              {% for f in audio_formats %}
-              <label class="format-option" onclick="selectFormat(this)">
-                <input type="radio" name="format_id" value="{{ f['format_id'] }}" required>
-                <div class="format-info">
-                  <div class="flex items-center justify-between">
-                    <span class="format-quality">{{ f.get('format_note', 'Audio') }}</span>
-                    <span class="quality-badge audio-quality">Audio</span>
-                  </div>
-                  <span class="format-type">{{ f['ext'] }} - {{ f.get('filesize_approx', 'N/A')|filesizeformat }}</span>
-                </div>
-              </label>
-              {% endfor %}
-            </div>
-          </div>
-          {% endif %}
+          </label>
+          {% endfor %}
         </div>
       </div>
 
@@ -491,37 +364,6 @@ HTML_TEMPLATE = """
       label.classList.add('selected');
       label.querySelector('input[type="radio"]').checked = true;
     }
-
-    function toggleCategories() {
-      const categories = document.getElementById('quality-categories');
-      const arrow = document.getElementById('category-arrow');
-      
-      if (categories.classList.contains('hidden')) {
-        categories.classList.remove('hidden');
-        arrow.style.transform = 'rotate(180deg)';
-      } else {
-        categories.classList.add('hidden');
-        arrow.style.transform = 'rotate(0deg)';
-      }
-    }
-
-    function selectFolder() {
-      // Create a temporary input element
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.webkitdirectory = true;
-      input.directory = true;
-      
-      input.onchange = function(e) {
-        if (e.target.files.length > 0) {
-          const path = e.target.files[0].path;
-          document.getElementById('save_path').value = path;
-          document.getElementById('download_path').value = path;
-        }
-      };
-      
-      input.click();
-    }
   </script>
 </body>
 </html>
@@ -532,7 +374,6 @@ def index():
     if request.method == "POST":
         try:
             video_url = request.form["video_url"]
-            save_path = request.form["save_path"]
             
             # Validate URL
             if not video_url or not video_url.startswith(('http://', 'https://')):
@@ -696,29 +537,23 @@ def index():
             # Filter out formats without format_id and ensure we have valid formats
             formats = [f for f in formats if f.get('format_id')]
             
-            # Include all formats that have either video or audio codec
-            valid_formats = []
+            # Only keep Video+Audio and Audio-only formats
+            video_audio_formats = []
+            audio_formats = []
             for f in formats:
                 vcodec = f.get('vcodec', 'none')
                 acodec = f.get('acodec', 'none')
-                
-                # Include if it has video codec (not 'none')
-                if vcodec != 'none':
-                    valid_formats.append(f)
-                # Include if it has audio codec (not 'none') and no video
-                elif acodec != 'none':
-                    valid_formats.append(f)
-                # Include if it has format_note indicating it's a valid format
-                elif f.get('format_note'):
-                    valid_formats.append(f)
-            
-            formats = valid_formats
-            
-            # Sort formats by quality (height first, then filesize)
-            formats.sort(key=lambda x: (
-                x.get('height', 0) or 0,
-                x.get('filesize_approx', 0) or 0
-            ), reverse=True)
+                # Video+Audio: both codecs present and not 'none'
+                if vcodec != 'none' and acodec != 'none':
+                    video_audio_formats.append(f)
+                # Audio only: vcodec is 'none', acodec is not 'none'
+                elif vcodec == 'none' and acodec != 'none':
+                    audio_formats.append(f)
+            # Merge for template context
+            formats = video_audio_formats + audio_formats
+            # Sort: Video+Audio by height, Audio by abr
+            video_audio_formats.sort(key=lambda x: (x.get('height', 0) or 0, x.get('filesize_approx', 0) or 0), reverse=True)
+            audio_formats.sort(key=lambda x: (x.get('abr', 0) or 0, x.get('filesize_approx', 0) or 0), reverse=True)
             
             # Debug: Print format count and details
             print(f"Total formats found: {len(formats)}")
@@ -726,11 +561,12 @@ def index():
             for f in formats[:20]:  # Print first 20 formats for debugging
                 print(f"Format: {f.get('format_id')} - {f.get('height')}p - {f.get('ext')} - vcodec: {f.get('vcodec')} - acodec: {f.get('acodec')} - note: {f.get('format_note', 'N/A')}")
             
-            return render_template_string(HTML_TEMPLATE, 
-                                        formats=formats, 
-                                        video_url=video_url, 
-                                        save_path=save_path,
-                                        video_title=info_dict.get('title', 'Unknown Title'))
+            return render_template_string(HTML_TEMPLATE,
+                                        formats=formats,
+                                        video_url=video_url,
+                                        video_title=info_dict.get('title', 'Unknown Title'),
+                                        video_audio_formats=video_audio_formats,
+                                        audio_formats=audio_formats)
         except Exception as e:
             return render_template_string(HTML_TEMPLATE, error=f"An error occurred: {str(e)}")
     return render_template_string(HTML_TEMPLATE)
@@ -739,11 +575,10 @@ def index():
 def download():
     try:
         video_url = request.form["video_url"]
-        save_path = request.form["save_path"]
         format_id = request.form["format_id"]
         
         # Validate inputs
-        if not all([video_url, save_path, format_id]):
+        if not all([video_url, format_id]):
             return "Missing required parameters", 400
         
         # Use temporary directory for deployed platforms
@@ -1078,6 +913,11 @@ def formats_by_quality(formats, quality_range):
     
     min_height, max_height = quality_ranges[quality_range]
     return video_formats_with_height(formats, min_height, max_height)
+
+# Add a custom filter to get only Video+Audio formats
+@app.template_filter('video_audio_formats')
+def video_audio_formats(formats):
+    return [f for f in formats if f.get('vcodec', 'none') != 'none' and f.get('acodec', 'none') != 'none']
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
